@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // 1. Passport modülünü projeye dahil et
+
 const passport = require('passport'); 
 
 // 2. Yazdığımız config/passport.js dosyasını çalıştır (stratejileri yükler)
@@ -19,6 +20,12 @@ app.use(passport.initialize());
 // 4. Yazdığımız auth rotalarını sisteme tanıt
 // İstemci '/api/auth/register' veya '/api/auth/login' isteği attığında 'routes/auth.js' dosyasına yönlendirilecek
 app.use('/api/auth', require('./routes/auth'));
+
+app.use('/api/products', require('./routes/product'));
+
+app.use('/api/swipes', require('./routes/swipe'));
+
+app.use('/api/basket', require('./routes/basket'));
 
 // --- Mevcut Veritabanı Bağlantın (Örnek) ---
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/swipe-shop')
