@@ -1,30 +1,48 @@
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
-  store: { type: String, required: true }, 
-  title: { type: String, required: true },
-  price: { type: Number, required: true },
-  imageUrl: { type: String, required: true },
-  productUrl: { type: String, required: true }, 
-  
-  gender: { 
-    type: String, 
-    enum: ['Erkek', 'Kadın', 'Kız Çocuk', 'Erkek Çocuk'], 
-    required: true 
+  title: {
+    type: String,
+    required: true
   },
-  // Güncelleme: Tekil String yerine String Array kullanılıyor
-  sizes: [String], // Örn: ['S', 'M', 'L']
-  color: { type: String }, 
-  
-  category: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Category', 
-    required: true 
+  description: {
+    type: String
   },
-  tags: [String], 
+  price: {
+    type: Number,
+    required: true
+  },
+  // GÜVENLİK: Aynı URL'nin ikinci kez eklenmesini engeller
+  productUrl: {
+    type: String,
+    required: true,
+    unique: true 
+  },
+  imageUrl: {
+    type: String,
+    required: true
+  },
+  store: {
+    type: String,
+    required: true
+  },
+  gender: {
+    type: String,
+    required: true
+  },
+  category: {
+    type: String,
+    required: true
+  },
+  color: {
+    type: String
+  },
+  sizes: [{
+    type: String
+  }],
+  tags: [{
+    type: String
+  }]
 }, { timestamps: true });
-
-// Arama ve filtreleme performansı için güncellenmiş indeks (sizes dahil edildi)
-ProductSchema.index({ gender: 1, category: 1, sizes: 1, color: 1 });
 
 module.exports = mongoose.model('Product', ProductSchema);
