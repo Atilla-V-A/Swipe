@@ -8,38 +8,40 @@ import {
   Alert, 
   ImageBackground, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  Image
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { BlurView } from 'expo-blur';
 import axios from 'axios';
 
-// Eklediğin görseli projeden çağırıyoruz
+// Assets
 const backgroundImage = require('../../assets/login_page.jpeg');
 
+
 const LoginScreen = () => {
-  const [isLoginMode, setIsLoginMode] = useState(true); // Giriş mi, Kayıt mı modu
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState(''); // Kayıt için isim
+  const [name, setName] = useState('');
   const { login, API_URL } = useContext(AuthContext);
 
   const handleSubmit = async () => {
     if (isLoginMode) {
-      // GİRİŞ YAP İŞLEMİ
+      // LOGIN 
       try {
         await login(email, password);
       } catch (error) {
-        Alert.alert("Giriş Hatası", "E-posta veya şifre yanlış.");
+        Alert.alert("Login Error", "Invalid email or password.");
       }
     } else {
-      // KAYIT OL İŞLEMİ (Backend'deki register rotana göre ayarla)
+      // REGISTER
       try {
         await axios.post(`${API_URL}/auth/register`, { name, email, password });
-        Alert.alert("Başarılı!", "Kayıt oldunuz. Şimdi giriş yapabilirsiniz.");
-        setIsLoginMode(true); // Kayıt başarılıysa Giriş formuna geri at
+        Alert.alert("Success!", "Registered successfully. You can now log in.");
+        setIsLoginMode(true);
       } catch (error) {
-        Alert.alert("Kayıt Hatası", error.response?.data?.message || "Bir hata oluştu.");
+        Alert.alert("Registration Error", error.response?.data?.message || "An error occurred.");
       }
     }
   };
@@ -50,38 +52,43 @@ const LoginScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={styles.container}
       >
-        {/* Blurlu Arka Plan Kutusu (Glassmorphism) */}
+        
+       
+        
+
         <BlurView intensity={70} tint="dark" style={styles.blurContainer}>
           
-          <Text style={styles.title}>{isLoginMode ? 'Giriş Yap' : 'Kayıt Ol'}</Text>
+          <Text style={styles.title}>{isLoginMode ? 'Sign In' : 'Sign Up'}</Text>
           <Text style={styles.subtitle}>
-            {isLoginMode ? 'Koleksiyonunu keşfetmeye devam et.' : 'Yeni bir tarza merhaba de.'}
+            {isLoginMode ? 'Continue exploring your collection.' : 'Say hello to a new style.'}
           </Text>
 
-          {/* Sadece Kayıt modundayken İsim alanı gösterilir */}
+          {/* Name input - Only for Registration */}
           {!isLoginMode && (
             <TextInput
               style={styles.input}
-              placeholder="Ad Soyad"
+              placeholder="Full Name"
               placeholderTextColor="#ccc"
               value={name}
               onChangeText={setName}
+              autoCorrect={false} 
             />
           )}
 
           <TextInput
             style={styles.input}
-            placeholder="E-posta"
+            placeholder="Email"
             placeholderTextColor="#ccc"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
+            autoCorrect={false} 
             keyboardType="email-address"
           />
           
           <TextInput
             style={styles.input}
-            placeholder="Şifre"
+            placeholder="Password"
             placeholderTextColor="#ccc"
             value={password}
             onChangeText={setPassword}
@@ -89,17 +96,17 @@ const LoginScreen = () => {
           />
 
           <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-            <Text style={styles.buttonText}>{isLoginMode ? 'GİRİŞ YAP' : 'KAYIT OL'}</Text>
+            <Text style={styles.buttonText}>{isLoginMode ? 'SIGN IN' : 'SIGN UP'}</Text>
           </TouchableOpacity>
 
-          {/* Formlar Arası Geçiş Butonu */}
+          {/* Mode Switcher */}
           <View style={styles.switchContainer}>
             <Text style={styles.switchText}>
-              {isLoginMode ? 'Hesabın yok mu? ' : 'Zaten hesabın var mı? '}
+              {isLoginMode ? "Don't have an account? " : "Already have an account? "}
             </Text>
             <TouchableOpacity onPress={() => setIsLoginMode(!isLoginMode)}>
               <Text style={styles.switchAction}>
-                {isLoginMode ? 'Kayıt Ol' : 'Giriş Yap'}
+                {isLoginMode ? 'Sign Up' : 'Sign In'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -122,6 +129,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  
   blurContainer: {
     width: '100%',
     padding: 30,
@@ -156,7 +164,7 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    backgroundColor: '#ff4b4b', // Tinder/Swipe tarzı tatlı bir kırmızı
+    backgroundColor: '#ff4b4b',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
