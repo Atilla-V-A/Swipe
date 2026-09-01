@@ -9,15 +9,15 @@ import { useCartStore } from '../store/useCartStore';
 
 const logoImage = require('../../assets/drip_logo.png');
 
-const SwipeScreen = () => {
-  const { logout, API_URL, userToken } = useContext(AuthContext);
-  const { cartItems, addToCart } = useCartStore();
+const SwipeScreen = ({ navigation, route }) => {
+  const { API_URL, userToken } = useContext(AuthContext); 
+  const { addToCart } = useCartStore(); 
   
   const [cards, setCards] = useState([]);
   const [swiperKey, setSwiperKey] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Deste karıştırma fonksiyonu
+  // Array Shuffle Function
   const shuffleArray = (array) => {
     let shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -27,21 +27,36 @@ const SwipeScreen = () => {
     return shuffled;
   };
 
-  // Ürünleri backend'den çekme
+  // Fetch Products with Network Error Handling & Retry Mechanism
   const fetchProducts = async () => {
     try {
       setLoading(true);
       const authHeader = userToken.startsWith('Bearer') ? userToken : `Bearer ${userToken}`;
 
       const response = await axios.get(`${API_URL}/products`, {
-        headers: { Authorization: authHeader }
+        headers: { Authorization: authHeader },
+        timeout: 10000, // 10 seconds timeout for bad connections
       });
       
       const randomizedProducts = shuffleArray(response.data);
       setCards(randomizedProducts);
     } catch (error) {
-      console.error("Ürünleri çekerken hata:", error);
-      Alert.alert("Hata", "Ürünler yüklenemedi. Lütfen tekrar deneyin.");
+      console.error("Error fetching products:", error.message);
+      
+      // If there is no response, it's highly likely a network/connection issue
+      if (!error.response) {
+        Alert.alert(
+          "Connection Error", 
+          "Please check your internet connection and try again.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Retry", onPress: () => fetchProducts() } 
+          ]
+        );
+      } else {
+        // Server responded with an error status (404, 500, etc.)
+        Alert.alert("Server Error", "Could not load products. Please try again later.");
+      }
     } finally {
       setLoading(false);
     }
@@ -51,7 +66,7 @@ const SwipeScreen = () => {
     fetchProducts();
   }, []);
 
-  // Yenileme Butonu İşlemi
+  // Restart Deck Algorithm
   const handleRestart = () => {
     Alert.alert(
       "Reset Algorithm",
@@ -69,26 +84,34 @@ const SwipeScreen = () => {
     );
   };
 
-  // Metin Normalizasyonu (Gereksiz tag tekrarlarını önlemek için)
+  // Listen for Refresh Signal from MainTabs
+  useEffect(() => {
+    if (route?.params?.doRefresh) {
+      handleRestart(); 
+      navigation.setParams({ doRefresh: undefined }); 
+    }
+  }, [route?.params?.doRefresh]);
+
+  // Text Normalization
   const normalizeText = (text) => {
     if (!text) return '';
     return text.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, ''); 
   };
 
-  // Fotoğraf Kalitesini Artırma (Özellikle Zara için)
+  // High-Res Image Replacer
   const getHighResImageUrl = (url) => {
     if (!url) return '';
     return url.replace(/&w=\d+/, '&w=1024'); 
   };
 
-  // --- BACKEND İLETİŞİMİ: KAYDIRMA İŞLEMLERİ ---
+  // --- BACKEND INTERACTIONS ---
 
-  // Sola Kaydırma (NOPE -> PASSED)
+  // Swiped Left (NOPE -> PASSED)
   const handleSwipedLeft = async (cardIndex) => {
     const swipedCard = cards[cardIndex];
     if (!swipedCard) return;
 
-    console.log('Geçildi (Passed):', swipedCard.title);
+    console.log('Passed:', swipedCard.title);
 
     try {
       const authHeader = userToken.startsWith('Bearer') ? userToken : `Bearer ${userToken}`;
@@ -101,26 +124,24 @@ const SwipeScreen = () => {
     } catch (error) {
       const errorMsg = JSON.stringify(error.response?.data || "");
       if (errorMsg.includes("E11000") || errorMsg.includes("duplicate key")) {
-        console.log("Bilgi: Bu ürün zaten daha önce sola kaydırılmış (passed), veritabanı yoksaydı.");
+        console.log("Info: Item already swiped left, DB ignored duplicate.");
       } else {
-        console.log("Backend asıl hata:", error.response?.data);
-        console.error("Swipe kaydı gönderilemedi:", error.message);
+        console.error("Failed to send left swipe:", error.message);
       }
     }
   };
 
-  // Sağa Kaydırma (LIKE -> LIKED & BASKET/ADD)
+  // Swiped Right (LIKE -> LIKED & BASKET/ADD)
   const handleSwipedRight = async (cardIndex) => {
     const likedProduct = cards[cardIndex];
     if (!likedProduct) return;
 
     addToCart(likedProduct);
-    console.log('Beğenildi (Liked):', likedProduct.title);
+    console.log('Liked:', likedProduct.title);
 
     try {
       const authHeader = userToken.startsWith('Bearer') ? userToken : `Bearer ${userToken}`;
       
-      // Swipe koleksiyonuna 'liked' olarak kaydet
       await axios.post(`${API_URL}/swipes`, {
         productId: likedProduct._id,
         action: 'liked' 
@@ -128,7 +149,6 @@ const SwipeScreen = () => {
         headers: { Authorization: authHeader }
       });
 
-      // Sepete Ekleme
       await axios.post(`${API_URL}/basket/add`, {
         productId: likedProduct._id
       }, {
@@ -138,10 +158,9 @@ const SwipeScreen = () => {
     } catch (error) {
       const errorMsg = JSON.stringify(error.response?.data || "");
       if (errorMsg.includes("E11000") || errorMsg.includes("duplicate key")) {
-        console.log("Bilgi: Bu ürün zaten daha önce sağa kaydırılmış (liked), veritabanı yoksaydı.");
+        console.log("Info: Item already swiped right, DB ignored duplicate.");
       } else {
-        console.log("Backend asıl hata:", error.response?.data);
-        console.error("Sepet/Like kaydı gönderilemedi:", error.message);
+        console.error("Failed to send right swipe/cart data:", error.message);
       }
     }
   };
@@ -229,37 +248,6 @@ const SwipeScreen = () => {
           />
         )}
       </View>
-
-      {/* BOTTOM BAR */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.bottomTab} onPress={handleRestart}>
-          <Ionicons name="refresh" size={28} color="#777" />
-          <Text style={styles.bottomTabText}>Refresh</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.bottomTab}>
-          <Ionicons name="home" size={28} color="#ff4b4b" />
-          <Text style={[styles.bottomTabText, { color: '#ff4b4b' }]}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.bottomTab}>
-          <View>
-            <Ionicons name="cart-outline" size={28} color="#777" />
-            {cartItems.length > 0 && (
-              <View style={styles.badgeContainer}>
-                <Text style={styles.badgeText}>{cartItems.length}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.bottomTabText}>Cart</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.bottomTab} onPress={logout}>
-          <Ionicons name="person-outline" size={28} color="#777" />
-          <Text style={styles.bottomTabText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
-
     </SafeAreaView>
   );
 };
@@ -282,12 +270,7 @@ const styles = StyleSheet.create({
   noMoreCardsContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 },
   noMoreCardsText: { fontSize: 18, color: '#777', marginTop: 15, marginBottom: 20 },
   refreshBtnInline: { backgroundColor: '#ff4b4b', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  refreshBtnInlineText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  bottomBar: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee', paddingVertical: 15, paddingBottom: 25, zIndex: 100, elevation: 10 },
-  bottomTab: { alignItems: 'center', justifyContent: 'center' },
-  bottomTabText: { fontSize: 12, color: '#777', marginTop: 4 },
-  badgeContainer: { position: 'absolute', top: -5, right: -8, backgroundColor: '#ff4b4b', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' }
+  refreshBtnInlineText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default SwipeScreen;

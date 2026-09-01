@@ -68,3 +68,24 @@ exports.removeFromBasket = async (req, res) => {
     res.status(500).json({ message: 'Ürün çıkarılırken hata oluştu.', error: error.message });
   }
 };
+exports.clearBasket = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const basket = await Basket.findOne({ user: userId });
+    
+    if (!basket) {
+      return res.status(200).json({ message: 'Sepet zaten boş.' });
+    }
+
+    basket.products = [];
+    if (basket.totalPrice !== undefined) {
+      basket.totalPrice = 0; 
+    }
+
+    await basket.save();
+    res.status(200).json({ message: 'Sepet tamamen temizlendi.', basket });
+  } catch (error) {
+    res.status(500).json({ message: 'Sepet temizlenirken hata oluştu.', error: error.message });
+  }
+};

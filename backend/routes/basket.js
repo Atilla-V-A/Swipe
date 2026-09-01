@@ -8,4 +8,7 @@ router.get('/', passport.authenticate('jwt', { session: false }), basketControll
 router.post('/add', passport.authenticate('jwt', { session: false }), basketController.addToBasket);
 router.post('/remove', passport.authenticate('jwt', { session: false }), basketController.removeFromBasket);
 
+// YENİ EKLENDİ: Sepeti tamamen boşaltma
+router.post('/clear', passport.authenticate('jwt', { session: false }), basketController.clearBasket);
+
 module.exports = router;
