@@ -1,15 +1,20 @@
 import React, { createContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
+import Constants from 'expo-constants';
 import { useCartStore } from '../store/useCartStore'; // 1. ZUSTAND IMPORT EDİLDİ
+import { useSettingsStore } from '../store/useSettingsStore';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
 
-  const API_URL = 'http://localhost:3001/api';
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const localhost = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
+  const API_URL = `http://${localhost}:3001/api`;
 
   // --- YENİ EKLENDİ: Backend'den sepeti çekip Zustand'a yükleyen yardımcı fonksiyon ---
   // --- GÜNCELLENMİŞ SEPET ÇEKME FONKSİYONU ---
@@ -43,6 +48,9 @@ export const AuthProvider = ({ children }) => {
       
     } catch (error) {
       console.error('Kullanıcı sepeti çekilemedi:', error.response?.data || error.message);
+      if (error.response && error.response.status === 401) {
+        throw new Error('Unauthorized');
+      }
     }
   };
   // -----------------------------------------------------------------------------------
@@ -52,14 +60,26 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       const storedToken = await SecureStore.getItemAsync('jwt_token');
+      const storedUserInfo = await SecureStore.getItemAsync('user_info');
+      
       if (storedToken) {
         setUserToken(storedToken); 
+        if (storedUserInfo) {
+          setUserInfo(JSON.parse(storedUserInfo));
+        }
         
         // 2. OTOMATİK GİRİŞ YAPILDIĞINDA SEPETİ DE ÇEK
         await fetchUserBasket(storedToken);
       }
     } catch (error) {
-      console.log('Token okuma hatası:', error);
+      console.log('Token okuma/doğrulama hatası:', error.message);
+      if (error.message === 'Unauthorized') {
+        // Eski/geçersiz token varsa temizle
+        await SecureStore.deleteItemAsync('jwt_token');
+        await SecureStore.deleteItemAsync('user_info');
+        setUserToken(null);
+        setUserInfo(null);
+      }
     } finally {
       setIsLoading(false); 
     }
@@ -75,10 +95,13 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.post(`${API_URL}/auth/login`, { email, password });
       
       const token = response.data.token; 
+      const user = response.data.user;
       
       if (token) {
         setUserToken(token); 
+        setUserInfo(user);
         await SecureStore.setItemAsync('jwt_token', token); 
+        await SecureStore.setItemAsync('user_info', JSON.stringify(user));
         
         // 3. KULLANICI E-POSTA/ŞİFRE İLE GİRDİĞİNDE SEPETİ ÇEK
         await fetchUserBasket(token);
@@ -94,16 +117,26 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setIsLoading(true);
     setUserToken(null);
+    setUserInfo(null);
     await SecureStore.deleteItemAsync('jwt_token'); 
+    await SecureStore.deleteItemAsync('user_info');
     
     // 4. ÇIKIŞ YAPILDIĞINDA ZUSTAND SEPETİNİ SIFIRLA
     useCartStore.getState().clearCart();
     
+    // 5. ÇIKIŞ YAPILDIĞINDA AYARLARI SIFIRLA (Light Mode ve English'e döner)
+    useSettingsStore.getState().resetSettings();
+    
     setIsLoading(false);
   };
 
+  const updateUserInfo = async (newUserInfo) => {
+    setUserInfo(newUserInfo);
+    await SecureStore.setItemAsync('user_info', JSON.stringify(newUserInfo));
+  };
+
   return (
-    <AuthContext.Provider value={{ login, logout, userToken, isLoading, API_URL }}>
+    <AuthContext.Provider value={{ login, logout, userToken, userInfo, updateUserInfo, isLoading, API_URL }}>
       {children}
     </AuthContext.Provider>
   );

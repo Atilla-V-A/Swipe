@@ -12,5 +12,6 @@
     // Yeni eklediğimiz sepet / sepetten çıkarma rotaları:
     router.delete('/basket/:productId', passport.authenticate('jwt', { session: false }), swipeController.removeFromBasketAndUndoLike);
     router.delete('/basket', passport.authenticate('jwt', { session: false }), swipeController.clearBasket);
+    router.post('/reset', passport.authenticate('jwt', { session: false }), swipeController.resetAlgorithm);
 
     module.exports = router;

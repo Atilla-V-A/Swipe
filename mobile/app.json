@@ -8,9 +8,11 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.atilla.swipe"
     },
     "android": {
+      "package": "com.atilla.swipe",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -20,13 +22,15 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-  "bundler": "metro",
-  "output": "single",
-  "favicon": "./assets/images/favicon.png"
-},
-    "plugins": [],
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-image"
+    ],
     "experiments": {
-      
       "reactCompiler": true
     }
   }

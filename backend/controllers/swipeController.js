@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const User1 = require('../models/User1');
 const SwipeHistory = require('../models/SwipeHist');
+const UserStat = require('../models/UserStat');
 const TagScoringStrategy = require('../strategies/TagScoringStrategy');
 
 const scoringStrategy = new TagScoringStrategy();
@@ -72,12 +73,32 @@ exports.swipeAction = async (req, res) => {
     if (!user.seenProducts.includes(productId)) {
       user.seenProducts.push(productId);
       
-      // Liked (+1), Disliked (-1)
-      const point = action === 'liked' ? 1 : -1;
+      const isLiked = action === 'liked';
       if (product.tags) {
         product.tags.forEach(tag => {
-          const currentScore = user.tagScores.get(tag) || 0;
-          user.tagScores.set(tag, currentScore + point);
+          const lowerTag = tag.toLowerCase();
+          const store = product.store ? product.store.toLowerCase() : '';
+          const gender = product.gender ? product.gender.toLowerCase() : '';
+          
+          let point = 0;
+
+          // Cinsiyet tag'lerine puan ekleme (zaten ana filtre)
+          if (lowerTag === gender || ['erkek', 'kadın', 'men', 'women', 'unisex'].includes(lowerTag)) {
+            point = 0; 
+          } 
+          // Markalara +1 / -1
+          else if (lowerTag === store || lowerTag.includes(store) || store.includes(lowerTag)) {
+            point = isLiked ? 1 : -1;
+          } 
+          // Diğer tüm stil/özellik tag'lerine +4 / -2 (Daha agresif öğrenme)
+          else {
+            point = isLiked ? 4 : -2;
+          }
+
+          if (point !== 0) {
+            const currentScore = user.tagScores.get(tag) || 0;
+            user.tagScores.set(tag, currentScore + point);
+          }
         });
       }
       await user.save();
@@ -86,6 +107,14 @@ exports.swipeAction = async (req, res) => {
     // B. SwipeHist'e logla
     const newSwipe = new SwipeHistory({ user: userId, product: productId, action: action });
     await newSwipe.save();
+
+    // Log to UserStat for persistent weekly/monthly metrics
+    // Record that a swipe happened
+    await new UserStat({ user: userId, action: 'swipe' }).save();
+    // If it was a 'liked' action, also record a like
+    if (action === 'liked') {
+      await new UserStat({ user: userId, action: 'like' }).save();
+    }
 
     // C. Eğer 'liked' ise Basket'e de ekleyebilirsin (Otomatik Sepet Entegrasyonu)
     // Eğer sepet controller'ında ayrı bir "add" metodun varsa buraya çağırabilirsin.
@@ -126,6 +155,22 @@ exports.clearBasket = async (req, res) => {
         // await Basket.findOneAndUpdate({ user: userId }, { $set: { products: [] } });
         res.status(200).json({ message: "Sepetiniz başarıyla temizlendi." });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 4. Algoritmayı Sıfırla (Tag Scores + Seen Products)
+exports.resetAlgorithm = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        
+        await User1.findByIdAndUpdate(userId, {
+            $set: { tagScores: {}, seenProducts: [] }
+        });
+
+        res.status(200).json({ message: "Algorithm reset successfully." });
+    } catch (error) {
+        console.error("Reset algorithm error:", error);
         res.status(500).json({ error: error.message });
     }
 };

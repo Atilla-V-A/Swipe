@@ -36,7 +36,7 @@ const jwtOptions = {
 
 passport.use(new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
-    const user = await User.findById(payload.id).select('-passwordHash'); // Güvenlik için hash'i dışarıda bırakıyoruz
+    const user = await User.findById(payload._id).select('-passwordHash'); // Güvenlik için hash'i dışarıda bırakıyoruz
     if (user) {
       return done(null, user);
     }

@@ -1,5 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 require('dotenv').config();
 
 // 1. Passport modülünü projeye dahil et
@@ -11,6 +12,7 @@ require('./config/passport1');
 
 const app = express();
 
+app.use(cors());
 // Gelen JSON verilerini (Postman body vb.) okuyabilmek için gerekli
 app.use(express.json());
 
