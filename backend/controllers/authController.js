@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const User = require('../models/User1'); 
 const UserStat = require('../models/UserStat');
 const nodemailer = require('nodemailer');
@@ -12,6 +13,32 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const sendEmail = async ({ to, subject, text }) => {
+  if (process.env.EMAIL_WEBHOOK_URL) {
+    const response = await axios.post(
+      process.env.EMAIL_WEBHOOK_URL,
+      {
+        to,
+        subject,
+        text,
+        secret: process.env.EMAIL_WEBHOOK_SECRET || ''
+      },
+      { timeout: 15000 }
+    );
+    if (!response.data || response.data.ok !== true) {
+      throw new Error(response.data?.error || 'Email webhook failed');
+    }
+    return;
+  }
+
+  await transporter.sendMail({
+    from: `"Drip App" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    text
+  });
+};
+
 // 1. KAYIT OLMA (REGISTER)
 exports.register = async (req, res) => {
   try {
@@ -23,7 +50,7 @@ exports.register = async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (existingUser && existingUser.isVerified) {
       return res.status(400).json({ message: 'Bu email zaten kullanılıyor.' });
     }
     const saltRounds = 10;
@@ -32,30 +59,36 @@ exports.register = async (req, res) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-    const newUser = new User({
-      name,
-      email,
-      passwordHash: hashedPassword,
-      isVerified: false,
-      verificationCode: otpCode,
-      verificationCodeExpires: otpExpires
-    });
-    
-    await newUser.save();
-
-    const mailOptions = {
-      from: `"Drip App" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: email,
       subject: 'Drip - Hesabınızı Doğrulayın',
       text: `Drip uygulamasına hoş geldiniz! Doğrulama kodunuz: ${otpCode}. Bu kod 15 dakika geçerlidir.`
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
+    let userToSave;
+    if (existingUser) {
+      existingUser.name = name;
+      existingUser.passwordHash = hashedPassword;
+      existingUser.verificationCode = otpCode;
+      existingUser.verificationCodeExpires = otpExpires;
+      userToSave = existingUser;
+    } else {
+      userToSave = new User({
+        name,
+        email,
+        passwordHash: hashedPassword,
+        isVerified: false,
+        verificationCode: otpCode,
+        verificationCodeExpires: otpExpires
+      });
+    }
+
+    await userToSave.save();
 
     res.status(201).json({ 
       message: 'Kayıt başarılı. Lütfen email adresinize gönderilen kodu girin.',
-      userId: newUser._id,
-      email: newUser.email
+      userId: userToSave._id,
+      email: userToSave.email
     });
 
   } catch (error) {
@@ -286,14 +319,11 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordCodeExpires = Date.now() + 15 * 60 * 1000; // 15 dakika
     await user.save();
 
-    const mailOptions = {
-      from: `"Drip App" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: user.email,
       subject: 'Drip - Şifre Sıfırlama Kodu',
       text: `Şifrenizi sıfırlamak için onay kodunuz: ${resetCode}\n\nBu kod 15 dakika geçerlidir.`
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     res.status(200).json({ message: "Şifre sıfırlama kodu e-posta adresinize gönderildi." });
 
   } catch (error) {
