@@ -59,12 +59,7 @@ exports.register = async (req, res) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-    await sendEmail({
-      to: email,
-      subject: 'Drip - Hesabınızı Doğrulayın',
-      text: `Drip uygulamasına hoş geldiniz! Doğrulama kodunuz: ${otpCode}. Bu kod 15 dakika geçerlidir.`
-    });
-
+    // Önce DB'ye kaydet — hızlı response için
     let userToSave;
     if (existingUser) {
       existingUser.name = name;
@@ -82,8 +77,14 @@ exports.register = async (req, res) => {
         verificationCodeExpires: otpExpires
       });
     }
-
     await userToSave.save();
+
+    // Sonra email arka planda gönder (response'u bloklama)
+    sendEmail({
+      to: email,
+      subject: 'Drip - Hesabınızı Doğrulayın',
+      text: `Drip uygulamasına hoş geldiniz! Doğrulama kodunuz: ${otpCode}. Bu kod 15 dakika geçerlidir.`
+    }).catch(err => console.error('🔥 EMAIL GÖNDERME HATASI:', err));
 
     res.status(201).json({ 
       message: 'Kayıt başarılı. Lütfen email adresinize gönderilen kodu girin.',
